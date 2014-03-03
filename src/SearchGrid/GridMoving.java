@@ -8,7 +8,7 @@ import lejos.nxt.Sound;
 import lejos.nxt.TouchSensor;
 import lejos.util.Delay;
 import rp13.search.interfaces.Agenda;
-import search.AgendaListA;
+import agendas.AgendaListA;
 import search.SearchingFramework;
 import Grid.Grid;
 import Grid.Grid.RobotMove;
@@ -45,8 +45,7 @@ import Grid.GridSuccessorFunction;
 		puzzle.setBlock(4,3,3,3);
 		puzzle.setBlock(2, 2, 3, 2);
 		puzzle.setBlock(3,0,4,0);
-		ArrayList<Grid> aList = new ArrayList <Grid>();
-		Agenda<Grid> agenda = new AgendaListA<Grid>(aList);
+		Agenda<Grid> agenda = new AgendaListA<Grid>();
 		SearchingFramework<RobotMove,Grid,GridSuccessorFunction > search 
 		= new SearchingFramework<RobotMove,Grid,GridSuccessorFunction >
 		(function, puzzle, agenda);
@@ -78,9 +77,9 @@ import Grid.GridSuccessorFunction;
 					//if side sensor reads black means it is cross turn when going forward
 					if(light2.getNormalizedLightValue()<=black)
 					{
-						motor.AdjLeft(solution.get(index).r_move*90);//left 1*90 forward 0*90 right -1*90
+						motor.AdjLeft(solution.get(index).r_move*90);//left(1)*90 forward(0)*90 right(-1)*90
 						index++;//increase index every time robot turns (like a for loop)
-						moved.add(solution.get(index));	
+						moved.add(solution.get(index));	// add move to the list to store for online detection
 					}
 				}
 				if(light.readNormalizedValue()>black){
@@ -94,16 +93,17 @@ import Grid.GridSuccessorFunction;
 						degree=degree+2;					
 				}
 				
-			if(sensor.isPressed()) //if detect wall online
+			if(sensor.isPressed()) //if detect block online
 			{
-				// re initialize everything
+				// re initialize the new puzzle
 				Grid currS = new Grid(search.getState(moved));// current position
 				moved.remove(moved.size()-1);//remove last move
 				Grid beforeS =new Grid(search.getState(moved));//the last position
-				puzzle=new Grid(beforeS); // new puzzle to solve
+				puzzle=new Grid(beforeS); // new puzzle to solve but different direction
+				puzzle.setRobotDirection(currS.getRobotDirection());//robot facing new direction
 				puzzle.setBlock(beforeS.getRobotX(),beforeS.getRobotY() , currS.getRobotX(), currS.getRobotY());
-				aList = new ArrayList <Grid>();
-				agenda = new AgendaListA<Grid>(aList);
+				//re initialize the searching stuff
+				agenda = new AgendaListA<Grid>();
 				function = new GridSuccessorFunction();
 				search = new SearchingFramework<RobotMove,Grid,GridSuccessorFunction >(function, puzzle, agenda);
 				search.Search();
@@ -111,15 +111,19 @@ import Grid.GridSuccessorFunction;
 				solution.addAll(search.getResult());//solution be new path
 				index=0;//reset index to 0
 				moved = new ArrayList<RobotMove>();// new moved
+				System.out.println(puzzle);//print the puzzle state for debug
 				while(light2.getNormalizedLightValue()>black)
 				{
 					motor.backward(); //go backwards until reach back -> the state before bumping to wall
 				}
 
 			}
-			if(index==solution.size()-1);
+			if(index==solution.size()-1)
 			{
 				Sound.beep();//reaches goal
+			}
+			if(!search.Search()){ //if no solution then turn turn turn turn
+				motor.TurnRight();
 			}
 		}	
 	}			
